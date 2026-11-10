@@ -8,7 +8,9 @@
     "skipLibCheck": true,
     "experimentalDecorators": true,
     "useDefineForClassFields": false,
-    "outDir": "dist"
+    "types": ["node"],
+    "outDir": "dist",
+    "rootDir": "src",
   },
   "include": ["src"]
 }
