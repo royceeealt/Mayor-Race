@@ -1,5 +1,7 @@
 import { Room, Client } from "colyseus";
 import { LobbyState, LobbyPlayer } from "./LobbyState.js";
+import { createActor } from "xstate";
+import { roundMachine } from "./roundMachine.js";
 
 const LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ"; // no I or O, easy to read aloud
 const usedCodes = new Set<string>();
@@ -17,11 +19,24 @@ function makeCode(): string {
 
 export class GameRoom extends Room<{ state: LobbyState }> {
   maxClients = 12;
+  private actor = createActor(roundMachine);
 
   onCreate() {
     this.roomId = makeCode(); // players join with joinById("ABCD")
     this.setState(new LobbyState());
     this.state.code = this.roomId;
+
+    this.actor.subscribe((snap) => {
+      this.state.phase = String(snap.value);
+      this.state.phaseEndsAt = snap.context.phaseEndsAt;
+      this.state.round = snap.context.round;
+      this.state.totalRounds = snap.context.totalRounds;
+    });
+    this.actor.start();
+
+    this.onMessage("skip_phase", (client) => {
+      if (client.sessionId === this.state.hostId) this.actor.send({ type: "SKIP" });
+    });
 
     this.onMessage("set_name", (client, name: string) => {
       const p = this.state.players.get(client.sessionId);
@@ -39,10 +54,15 @@ export class GameRoom extends Room<{ state: LobbyState }> {
     });
 
     this.onMessage("start_game", (client) => {
-      if (client.sessionId !== this.state.hostId) return; // host only
-      if (this.state.players.size < 3) return;            // minimum 3
-      this.lock();                                        // lobby-only joins
-      this.state.phase = "ASSIGN_ROLES";                  // XState takes over next
+      if (client.sessionId !== this.state.hostId) return;
+      const n = this.state.players.size;
+      if (n < 3) return;
+      this.lock();
+      this.actor.send({
+        type: "START",
+        totalRounds: n >= 9 ? 5 : 3, // section 2.3
+        speechSeconds: 45,
+      });
     });
   }
 
@@ -64,6 +84,7 @@ export class GameRoom extends Room<{ state: LobbyState }> {
   }
 
   onDispose() {
+    this.actor.stop();
     usedCodes.delete(this.roomId);
   }
 

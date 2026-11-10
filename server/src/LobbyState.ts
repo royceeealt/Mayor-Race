@@ -13,5 +13,8 @@ export class LobbyState extends Schema {
   @type("string") hostId = "";
   @type("string") phase = "LOBBY";
   @type("number") maxPlayers = 12;
+  @type("number") phaseEndsAt = 0;
+  @type("number") round = 0;
+  @type("number") totalRounds = 3;
   @type({ map: LobbyPlayer }) players = new MapSchema<LobbyPlayer>();
 }
