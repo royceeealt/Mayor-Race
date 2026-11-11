@@ -1,0 +1,28 @@
+{
+  "name": "@mayor-race/server",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "build": "tsc --noEmit -p .",
+    "live": "tsx test/live.ts",
+    "typecheck": "tsc --noEmit -p .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@mayor-race/shared": "*",
+    "@colyseus/core": "^0.18.12",
+    "@colyseus/ws-transport": "^0.18.4",
+    "xstate": "^5.19.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@colyseus/sdk": "^0.18.9",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^3.2.0"
+  }
+}
