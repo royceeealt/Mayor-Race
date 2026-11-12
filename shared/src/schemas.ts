@@ -1,7 +1,7 @@
 // shared/src/schemas.ts
 // Zod schemas for every client intent (section 6.6). The server MUST parse every message with these.
 import { z } from 'zod';
-import { AVATARS, MAX_PLAYERS, MIN_PLAYERS, SPEECH_SECONDS_OPTIONS } from './constants';
+import { AVATARS, MAX_PLAYERS, MIN_PLAYERS, SPEECH_SECONDS_OPTIONS } from './constants.js';
 
 export const nameSchema = z.string().trim().min(1).max(16);
 export const roomCodeSchema = z
@@ -13,8 +13,8 @@ export const roomCodeSchema = z
 export const settingsSchema = z.object({
   rounds: z.number().int().min(1).max(9),
   speechSeconds: z.union([z.literal(30), z.literal(45), z.literal(60)]),
-  promptTier: z.enum(['wholesome', 'silly', 'spicy']),
-  candidateMode: z.enum(['random', 'volunteers']),
+  promptTier: z.enum(['silly', 'serious', 'random']),
+  candidateMode: z.enum(['random', 'chosen']),
   rolesEnabled: z.boolean(),
   casualMode: z.boolean(),
   maxPlayers: z.number().int().min(MIN_PLAYERS).max(MAX_PLAYERS),
@@ -34,7 +34,7 @@ export const intentSchemas = {
   chat: z.object({ text: z.string().trim().min(1).max(200) }),
   react: z.object({ kind: z.enum(['tomato', 'star', 'question']), messageId: z.string().optional() }),
   leave: z.object({}),
-  volunteer: z.object({ volunteer: z.boolean() }), // only when candidateMode = volunteers
+  volunteer: z.object({ volunteer: z.boolean() }), // only when candidateMode = chosen
 
   // Host
   start_game: z.object({}),

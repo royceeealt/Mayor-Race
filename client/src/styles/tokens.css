@@ -1,0 +1,59 @@
+/* Design tokens from CLAUDE.md section 4. Use these variables everywhere; never scatter hex values. */
+:root {
+  /* core palette */
+  --sky: #bfe4ea;
+  --cloud: #f3ecdd;
+  --frame: #f4efcb; /* cream: chalkboard frames, paper, cards */
+  --slate: #4b5a57; /* chalkboard fill, main text and outlines */
+  --pill: #f0dfd0; /* pill outlines, button borders */
+  --chalk: #f5f1e6; /* text on slate */
+  --red: #db4130; /* primary buttons, candidate A */
+  --blue: #5c8fad; /* candidate B */
+  --meadow: #82b66f;
+  --sage: #a4c193;
+  --yellow: #f3ee9b;
+  --gold: #f7d84a;
+  --wire: #2e3a3a;
+
+  /* room and wood */
+  --wall: #eae4bf;
+  --floor: #d9b88b;
+  --floor-line: #c9a576;
+  --wood: #b78a5b;
+  --wood-light: #e0bc8a;
+  --wood-mid: #c9a06e;
+  --oak: #b8793f; /* signs */
+  --plum: #6e4a7e;
+  --bark: #3a2a1e; /* dark text, outlines on wood */
+
+  /* roles */
+  --role-booing: #db4130;
+  --role-rumour: #6e4a7e;
+  --role-snitch: #4e8b5b;
+  --role-biased: #e0a526;
+
+  /* How to play cards (from design/howtoplay*.png). Used as accents only, never as backgrounds. */
+  --htp-moss: #3f6b4a;
+  --htp-linen: #f8eedb;
+  --htp-amber: #f4a93b;
+  --htp-sage-panel: #a9c4a0;
+
+  /* town scenery (home screen) */
+  --tower: #f4a15a;
+  --tower-top: #f2b88a;
+  --tower-dark: #c27a43;
+  --spire: #27425a;
+  --roof-red: #e2474f;
+  --hill: #9ec9a9;
+  --bush: #6f9f58;
+  --shadow-dark: #2a3a28;
+
+  /* type */
+  --font-ui: 'Nunito Sans', 'Nunito', system-ui, sans-serif;
+  --font-sign: 'Bree Serif', Georgia, serif;
+  --font-hand: 'Caveat', cursive;
+
+  /* layout */
+  --horizon: 58%; /* where sky meets meadow in the design mockups */
+  --tap: 44px; /* minimum tap target */
+}

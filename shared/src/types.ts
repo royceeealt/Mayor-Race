@@ -6,17 +6,18 @@
 // Clients import only *View types. If a field is secret, it must not exist on a View type
 // unless it is optional and only filled for the player who owns it.
 
-import type { Avatar, Phase, RoleKey, SpecialRoleKey } from './constants';
+import type { Avatar, NoticeKind, Phase, RoleKey, SpecialRoleKey } from './constants.js';
 
 export type Side = 'agree' | 'disagree';
-export type PromptTier = 'wholesome' | 'silly' | 'spicy';
+/** 'random' = each round's prompts are drawn from both the silly and serious packs. */
+export type PromptTier = 'silly' | 'serious' | 'random';
 export type CandidateSlot = 'A' | 'B'; // A = red, B = blue
 
 export interface Settings {
   rounds: number;
   speechSeconds: 30 | 45 | 60;
   promptTier: PromptTier;
-  candidateMode: 'random' | 'volunteers';
+  candidateMode: 'random' | 'chosen';
   rolesEnabled: boolean; // host can switch roles off
   casualMode: boolean; // no points, verdict and awards only
   maxPlayers: number; // 3 to 12
@@ -142,4 +143,18 @@ export interface RoomView {
   serverNow: number; // lets clients correct clock skew
   paused: boolean; // candidate disconnect pause, etc.
   reveal?: SecretRevealView;
+}
+
+/** Payload of the `notice` server event (drives the "player left" / "host transfer" overlays). */
+export interface NoticeView {
+  kind: NoticeKind;
+  playerId?: string;
+  name?: string;
+}
+
+/** Payload of the `timer_tick` server event, sent about once a second while a phase has a deadline. */
+export interface TimerTickView {
+  phase: Phase;
+  endsAt: number;
+  serverNow: number;
 }
