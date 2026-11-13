@@ -11,6 +11,7 @@ import {
   type Phase,
   type TimerTickView,
 } from '@mayor-race/shared';
+import { assignRoles } from '../game/assign.js';
 import { createPhaseActor, type PhaseActor } from '../game/machine.js';
 import { RoomError, RoomModel } from '../game/roomModel.js';
 import { generateUniqueRoomCode } from '../game/roomCode.js';
@@ -121,6 +122,7 @@ export class MayorRoom extends Room {
       case 'start_game':
         if (!m.canStart(id)) return;
         m.prepareStart();
+        assignRoles([...m.players.values()], { candidateMode: m.settings.candidateMode, rolesEnabled: m.settings.rolesEnabled });
         this.actor.send({ type: 'START', totalRounds: m.settings.rounds, speechSeconds: m.settings.speechSeconds });
         return; // machine subscription broadcasts
       case 'skip_phase':
