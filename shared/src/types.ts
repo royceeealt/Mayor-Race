@@ -92,16 +92,22 @@ export interface PromptOptionView {
 }
 
 export interface RoundView {
-  index: number; // 0-based
+  index: number;
   totalRounds: number;
   promptOptions?: PromptOptionView[];
-  winningPrompt?: { id: string; text: string; percent: number };
+  winningPrompt?: {
+    id: string;
+    text: string;
+    percent: number;
+  };
   sides?: Partial<Record<string, Side>>;
+
+  // Speech information
   speakerId?: string;
-  speechPenaltySeconds?: number; // total tomato time cut from the current speaker
-  rumour?: { cardText: string; aboutId: string; rebuttalEndsAt: number };
-  roundWins: Record<string, number>; // candidateId -> wins
-  ballotsCast: number; // "5 / 7 voted" (count only, never who or for whom)
+  speechPenaltySeconds?: number;
+
+  roundWins: Record<string, number>;
+  ballotsCast: number;
   voterTotal: number;
   result?: RoundResultView;
 }
