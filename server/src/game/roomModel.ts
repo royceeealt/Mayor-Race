@@ -11,7 +11,11 @@ import {
   MIN_PLAYERS,
   RECOMMENDED_MIN_PLAYERS,
   defaultRounds,
+  ABILITY_LIMITS,
+  ABILITY_PHASES,
+  TIMERS_SECONDS,
   type Avatar,
+  type ChatMessageView,
   type Phase,
   type ServerPlayer,
   type ServerRound,
@@ -94,6 +98,18 @@ export class RoomModel {
   /** Total seconds removed from the current speaker's speech. */
   speechPenaltySeconds = 0;
 
+  // --------------------------------
+  // CHAT AND RUMOUR STATE
+  // --------------------------------
+
+  /** Public chat feed. Never put private role/ability data in these messages. */
+  chatMessages: ChatMessageView[] = [];
+
+  /** Server-owned deadline for the targeted candidate's rumour rebuttal. */
+  rumourRebuttalEndsAt: number | null = null;
+
+  private chatMessageSequence = 0;
+
   /** Unconfirmed ballot selections; server-only and never included in a view. */
   private pendingBallots = new Map<string, string>();
 
@@ -162,6 +178,7 @@ export class RoomModel {
       ballots: {},
       boosUsed: 0,
       boosOnSpeaker: {},
+      boos: [],
       rumours: [],
     };
   }
@@ -201,6 +218,9 @@ export class RoomModel {
     this.roundHistory = [];
     this.usedPromptIds = [];
     this.clearPendingBallots();
+    this.chatMessages = [];
+    this.rumourRebuttalEndsAt = null;
+    this.chatMessageSequence = 0;
 
     this.speakerId = null;
     this.speechPenaltySeconds = 0;
@@ -229,6 +249,7 @@ export class RoomModel {
 
     // Clear any unconfirmed selections from a previous ballot.
     this.clearPendingBallots();
+    this.rumourRebuttalEndsAt = null;
 
     // Reset per-round ability usage counters.
     for (const player of this.players.values()) {
@@ -303,10 +324,180 @@ export class RoomModel {
     return true;
   }
 
+  /**
+   * Records one Booing Guy tomato during an active candidate speech.
+   * Returns false if the action is not legal.
+   */
+  recordBoo(booerId: string): boolean {
+    const round = this.currentRound;
+    const booer = this.players.get(booerId);
+    const speaker = this.speakerId
+      ? this.players.get(this.speakerId)
+      : undefined;
+
+    if (
+      (this.phase !== 'SPEECH_1' && this.phase !== 'SPEECH_2') ||
+      !round ||
+      !booer ||
+      !booer.connected ||
+      booer.spectator ||
+      booer.role !== 'booing' ||
+      booer.abilityLost ||
+      booer.usesLeft <= 0 ||
+      !this.speakerId ||
+      !speaker ||
+      !speaker.connected ||
+      speaker.role !== 'candidate' ||
+      booerId === this.speakerId ||
+      round.boosUsed >= ABILITY_LIMITS.booing.total
+    ) {
+      return false;
+    }
+
+    booer.usesLeft -= 1;
+    booer.usesThisRound += 1;
+    round.boosUsed += 1;
+    round.boosOnSpeaker[this.speakerId] =
+      (round.boosOnSpeaker[this.speakerId] ?? 0) + 1;
+    round.boos.push({ byId: booerId, targetId: this.speakerId });
+
+    return this.addSpeechPenalty(5);
+  }
+
   /** Clears the current speaker and their speech penalty. */
   finishSpeech(): void {
     this.speakerId = null;
     this.speechPenaltySeconds = 0;
+  }
+
+  // --------------------------------
+  // CHAT AND RUMOUR MANAGEMENT
+  // --------------------------------
+
+  private nextChatId(): string {
+    this.chatMessageSequence += 1;
+    return `${Date.now()}-${this.chatMessageSequence}`;
+  }
+
+  /** Records a normal chat message or a targeted candidate's rebuttal. */
+  recordChat(playerId: string, text: string): boolean {
+    const player = this.players.get(playerId);
+    const cleanText = text.trim();
+
+    if (
+      !player ||
+      !player.connected ||
+      player.spectator ||
+      cleanText.length === 0 ||
+      cleanText.length > 200
+    ) {
+      return false;
+    }
+
+    const isDebateChat = this.phase === 'DEBATE_CHAT';
+    const isActiveRumourTarget =
+      this.rumourRebuttalEndsAt !== null &&
+      Date.now() < this.rumourRebuttalEndsAt &&
+      !!this.currentRound?.rumours.some(
+        (rumour) => rumour.targetId === playerId,
+      );
+
+    if (!isDebateChat && !isActiveRumourTarget) {
+      return false;
+    }
+
+    this.chatMessages.push({
+      id: this.nextChatId(),
+      fromId: playerId,
+      text: cleanText,
+      kind: 'chat',
+      at: Date.now(),
+    });
+
+    if (this.chatMessages.length > 100) {
+      this.chatMessages.shift();
+    }
+
+    return true;
+  }
+
+  /**
+   * Records a rumour privately and publishes an anonymous chat bubble.
+   * The sender ID is stored only in ServerRound.rumours.byId.
+   */
+  recordRumour(
+    spreaderId: string,
+    targetId: string,
+    cardId: string,
+    text: string,
+  ): boolean {
+    const round = this.currentRound;
+    const spreader = this.players.get(spreaderId);
+    const target = this.players.get(targetId);
+
+    if (
+      !round ||
+      !spreader ||
+      !target ||
+      !spreader.connected ||
+      !target.connected ||
+      spreader.spectator ||
+      target.spectator ||
+      spreader.role !== 'rumour' ||
+      spreader.abilityLost ||
+      spreader.usesLeft <= 0 ||
+      spreader.usesThisRound >= ABILITY_LIMITS.rumour.perRound ||
+      !ABILITY_PHASES.includes(this.phase) ||
+      !this.candidateIds?.includes(targetId) ||
+      spreaderId === targetId ||
+      round.rumours.length >= ABILITY_LIMITS.rumour.perRound
+    ) {
+      return false;
+    }
+
+    const cleanText = text.trim();
+    if (!cleanText) return false;
+
+    // This is server-only data. Never copy byId into ChatMessageView.
+    round.rumours.push({
+      targetId,
+      byId: spreaderId,
+      cardId,
+    });
+
+    spreader.usesLeft -= 1;
+    spreader.usesThisRound += 1;
+
+    this.rumourRebuttalEndsAt =
+      Date.now() + TIMERS_SECONDS.RUMOUR_REBUTTAL * 1000;
+
+    this.chatMessages.push({
+      id: this.nextChatId(),
+      fromId: '',
+      text: cleanText,
+      kind: 'rumour',
+      targetId,
+      at: Date.now(),
+    });
+
+    if (this.chatMessages.length > 100) {
+      this.chatMessages.shift();
+    }
+
+    return true;
+  }
+
+  /** Clears an expired rebuttal deadline; returns true when it expired. */
+  expireRumourRebuttal(now = Date.now()): boolean {
+    if (
+      this.rumourRebuttalEndsAt === null ||
+      now < this.rumourRebuttalEndsAt
+    ) {
+      return false;
+    }
+
+    this.rumourRebuttalEndsAt = null;
+    return true;
   }
 
   // --------------------------------
@@ -617,6 +808,9 @@ export class RoomModel {
     this.roundWins = {};
     this.usedPromptIds = [];
     this.clearPendingBallots();
+    this.chatMessages = [];
+    this.rumourRebuttalEndsAt = null;
+    this.chatMessageSequence = 0;
 
     // Reset speech state.
     this.speakerId = null;

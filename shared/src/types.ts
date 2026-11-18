@@ -53,6 +53,7 @@ export interface ServerRound {
   ballots: Record<string, string>; // voterId -> candidateId (private forever until reveal)
   boosUsed: number;
   boosOnSpeaker: Record<string, number>; // candidateId -> tomatoes taken
+  boos: { byId: string; targetId: string }[]; // server-only: who booed which candidate
   rumours: { targetId: string; byId: string; cardId: string }[];
   accusation?: { by: string; target: string; claimed: SpecialRoleKey; correct?: boolean };
   winnerId?: string; // candidate id, or 'tie'
@@ -121,9 +122,11 @@ export interface RoundResultView {
 
 export interface ChatMessageView {
   id: string;
-  fromId: string;
+  fromId: string; // Empty for anonymous rumour messages
   text: string;
-  sideTag?: Side; // candidates only
+  kind?: 'chat' | 'rumour';
+  targetId?: string; // Public target of an anonymous rumour
+  sideTag?: Side;
   at: number;
 }
 
@@ -149,6 +152,8 @@ export interface RoomView {
   serverNow: number; // lets clients correct clock skew
   paused: boolean; // candidate disconnect pause, etc.
   reveal?: SecretRevealView;
+  rumourRebuttalEndsAt: number | null;
+
 }
 
 /** Payload of the `notice` server event (drives the "player left" / "host transfer" overlays). */
@@ -163,4 +168,5 @@ export interface TimerTickView {
   phase: Phase;
   endsAt: number;
   serverNow: number;
+  rumourRebuttalEndsAt?: number | null;
 }

@@ -225,7 +225,17 @@ export function buildRoomView(
     players,
     you,
     round: roundView,
-    chat: [],
+    chat: model.chatMessages.map((message) => ({
+      id: message.id,
+      fromId: message.fromId,
+      text: message.text,
+      kind: message.kind,
+      targetId: message.targetId,
+      sideTag: message.sideTag,
+      at: message.at,
+    })),
+
+    rumourRebuttalEndsAt: model.rumourRebuttalEndsAt,
 
     mayorId:
       phaseIdx >= idx('MAYOR_ANNOUNCED')

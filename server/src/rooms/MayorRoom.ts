@@ -6,6 +6,7 @@ import { Room, ServerError, matchMaker, type Client } from '@colyseus/core';
 
 import {
   DEFAULT_SETTINGS,
+  TIMERS_SECONDS,
   MIN_PLAYERS,
   intentSchemas,
   joinOptionsSchema,
@@ -44,6 +45,17 @@ const PROMPT_POOL = [
   'Everyone should have a pet',
   'Mondays should be holidays',
 ];
+
+const SAMPLE_RUMOURS = [
+  'They secretly practise their victory speech in the mirror.',
+  'They once blamed a pigeon for something they did.',
+  'They have a suspiciously detailed plan to become mayor.',
+  'They think the village rules do not apply to them.',
+  'They have been bribing people with imaginary snacks.',
+  'They once ran away from a duck and never recovered.',
+  'They have been secretly planning their campaign for weeks.',
+  'They think they are the most important person in the village.',
+] as const;
 
 export class MayorRoom extends Room {
   maxClients = 24;
@@ -399,6 +411,53 @@ export class MayorRoom extends Room {
       }
 
       // --------------------------------
+      // CHAT
+      // --------------------------------
+
+      case 'chat': {
+        if (!m.recordChat(id, data.text)) return;
+        this.broadcastState();
+        return;
+      }
+
+      // --------------------------------
+      // RUMOUR SPREADER
+      // --------------------------------
+
+      case 'spread_rumour': {
+        const index = Math.floor(Math.random() * SAMPLE_RUMOURS.length);
+        const rumourText = SAMPLE_RUMOURS[index];
+        const cardId = `sample-${index + 1}`;
+
+        if (!m.recordRumour(id, data.targetId, cardId, rumourText)) {
+          return;
+        }
+
+        this.broadcastState();
+        return;
+      }
+
+      // --------------------------------
+      // BOOING GUY
+      // --------------------------------
+
+      case 'boo': {
+        // Booing is intentionally limited to the two candidate speech phases.
+        if (m.phase !== 'SPEECH_1' && m.phase !== 'SPEECH_2') return;
+
+        if (!m.recordBoo(id)) return;
+
+        // Re-enter the speech state with a shorter remaining timer.
+        this.actor.send({
+          type: 'BOO',
+          seconds: TIMERS_SECONDS.BOO_PENALTY,
+        });
+
+        this.broadcastState();
+        return;
+      }
+
+      // --------------------------------
       // SPEECH MANAGEMENT
       // --------------------------------
 
@@ -577,14 +636,20 @@ export class MayorRoom extends Room {
   }
 
   private tick() {
+    const now = Date.now();
     const endsAt = this.model.phaseEndsAt;
+
+    // The rebuttal timer is independent of the main phase timer.
+    if (this.model.expireRumourRebuttal(now)) {
+      this.broadcastState();
+    }
 
     if (endsAt === null) return;
 
     const payload: TimerTickView = {
       phase: this.model.phase,
       endsAt,
-      serverNow: Date.now(),
+      serverNow: now,
     };
 
     this.broadcast('timer_tick', payload);

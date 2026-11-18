@@ -16,6 +16,7 @@ export interface MachineContext {
   round: number;
   totalRounds: number;
   speechSeconds: number;
+  speechPenaltySeconds: number;
   tieBreak: boolean;
 }
 
@@ -26,7 +27,8 @@ export type MachineEvent =
   | { type: 'REMATCH' }
   | { type: 'ABORT' }
   | { type: 'PROMPT_VOTING_COMPLETE' }
-  | { type: 'FINISH_SPEECH' };
+  | { type: 'FINISH_SPEECH' }
+  | { type: 'BOO'; seconds: number };
 
 export function phaseSeconds(
   phase: Phase,
@@ -42,8 +44,13 @@ export function phaseSeconds(
 const delays = Object.fromEntries(
   PHASES.map((p) => [
     `${p}_TIMER`,
-    ({ context }: { context: MachineContext }) =>
-      (phaseSeconds(p, context.speechSeconds) ?? 0) * 1000,
+    ({ context }: { context: MachineContext }) => {
+      const baseSeconds = phaseSeconds(p, context.speechSeconds) ?? 0;
+      const penalty = p === 'SPEECH_1' || p === 'SPEECH_2'
+        ? context.speechPenaltySeconds
+        : 0;
+      return Math.max(0, baseSeconds - penalty) * 1000;
+    },
   ]),
 ) as Record<string, (a: { context: MachineContext }) => number>;
 
@@ -79,10 +86,12 @@ function buildStates() {
       state.entry = assign({
         phaseEndsAt: ({ context }: { context: MachineContext }) => {
           const s = phaseSeconds(phase, context.speechSeconds);
+          const penalty = isSpeech ? context.speechPenaltySeconds : 0;
+          const remaining = s === null ? null : Math.max(0, s - penalty);
 
-          return s === null || s === 0
+          return remaining === null || remaining === 0
             ? null
-            : Date.now() + s * 1000;
+            : Date.now() + remaining * 1000;
         },
       });
     }
@@ -148,7 +157,12 @@ function buildStates() {
     } else if (next && secs !== null && secs !== undefined) {
       // Normal server-owned timer.
       state.after = {
-        [`${phase}_TIMER`]: next,
+        [`${phase}_TIMER`]: {
+          target: next,
+          ...(next === 'SPEECH_1' || next === 'SPEECH_2'
+            ? { actions: assign({ speechPenaltySeconds: 0 }) }
+            : {}),
+        },
       };
 
       if (SKIPPABLE_PHASES.includes(phase) && !isSpeech) {
@@ -159,9 +173,23 @@ function buildStates() {
 
       // Speeches can finish early.
       if (isSpeech) {
+        const advanceSpeech = {
+          target: next,
+          ...(next === 'SPEECH_1' || next === 'SPEECH_2'
+            ? { actions: assign({ speechPenaltySeconds: 0 }) }
+            : {}),
+        };
         state.on = {
-          SKIP: next,
-          FINISH_SPEECH: next,
+          SKIP: advanceSpeech,
+          FINISH_SPEECH: advanceSpeech,
+          BOO: {
+            target: phase,
+            reenter: true,
+            actions: assign({
+              speechPenaltySeconds: ({ context, event }) =>
+                Math.min(context.speechSeconds, context.speechPenaltySeconds + (event as any).seconds),
+            }),
+          },
         };
       }
 
@@ -209,6 +237,7 @@ export const phaseMachine = setup({
     round: 0,
     totalRounds: 3,
     speechSeconds: 45,
+    speechPenaltySeconds: 0,
     tieBreak: false,
   },
 

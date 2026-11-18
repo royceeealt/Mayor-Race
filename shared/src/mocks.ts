@@ -31,6 +31,7 @@ export function mockRoomView(
     players: mockPlayers(playerCount),
     you: { playerId: youId, role: null, usesLeft: 0, hasVotedPrompt: false, hasCastBallot: false },
     chat: [],
+    rumourRebuttalEndsAt: null,
     phaseEndsAt: null,
     serverNow: Date.now(),
     paused: false,
